@@ -24,12 +24,12 @@ O fluxo do sistema foi desenhado prezando pela simplicidade e usabilidade da jor
 ### Passo 1: Integração e Extração de Dados do Anki
 O sistema realiza a leitura local dos baralhos ativos de forma automatizada por meio do ecossistema do AnkiConnect.
 
-![Passo 1 - Extração de Dados do Anki](image_0oAsFq.png)
+![Passo 1 - Extração de Dados do Anki](1.png)
 
 ### Passo 2: Conexão com o Gemini e Geração da Trilha Adaptativa
 O usuário insere sua chave de API com segurança para acionar os prompts estruturados e gerar o bloco de 10 questões inéditas baseadas no conteúdo selecionado.
 
-![Passo 2 - Conexão com o Gemini](image_-MmdT5.png)
+![Passo 2 - Conexão com o Gemini](2.png)
 
 ---
 
