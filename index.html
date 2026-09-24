@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SingularEPT - Exportador Anki</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f1f5f9; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgb(0,0,0,0.1); }
+        .step { border: 1px solid #cbd5e1; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #f8fafc; }
+        .btn { background: #0284c7; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+        .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+        select { width: 100%; padding: 8px; margin-top: 5px; }
+        .status { font-weight: bold; color: #64748b; margin-top: 5px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔌 Passo 1: Extração de Dados do Anki</h2>
+        
+        <div class="step">
+            <h3>1. Ler Baralhos do Anki</h3>
+            <button class="btn" onclick="buscarBaralhosReais()">Chamar AnkiConnect</button>
+            <select id="select-baralhos" disabled>
+                <option>Aguardando clique no botão...</option>
+            </select>
+        </div>
+
+        <div class="step">
+            <h3>2. Transferir para a Área de Revisão</h3>
+            <p id="txt-status" class="status">Aguardando seleção do baralho...</p>
+            <button class="btn" id="btn-transferir" style="background-color: #10b981;" disabled onclick="processarETransferirDados()">Avançar para o Gemini (Sem Download)</button>
+        </div>
+    </div>
+
+    <script>
+        const URL_ANKI = 'http://127.0.0.1:8765';
+        let idsCardsEncontrados = [];
+
+        function buscarBaralhosReais() {
+            fetch(URL_ANKI, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'deckNames', version: 6 })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert("O Anki retornou um erro: " + data.error);
+                    return;
+                }
+                
+                const select = document.getElementById('select-baralhos');
+                select.innerHTML = '';
+                select.disabled = false;
+
+                data.result.forEach(baralho => {
+                    const option = document.createElement('option');
+                    option.value = baralho;
+                    option.textContent = baralho;
+                    select.appendChild(option);
+                });
+
+                document.getElementById('btn-transferir').disabled = false;
+                document.getElementById('txt-status').innerText = "✅ Baralhos carregados! Selecione um e avance.";
+                alert("Sucesso! Baralhos lidos do seu Anki.");
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Falha total de comunicação com o AnkiConnect.");
+            });
+        }
+
+        async function processarETransferirDados() {
+            const baralho = document.getElementById('select-baralhos').value;
+            const labelStatus = document.getElementById('txt-status');
+            labelStatus.innerText = "🔍 Buscando falhas no Anki...";
+
+            try {
+                const findRes = await fetch(URL_ANKI, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'findCards',
+                        version: 6,
+                        params: { query: `deck:"${baralho}" prop:ease<=2.2` }
+                    })
+                });
+                const dataIds = await findRes.json();
+                idsCardsEncontrados = dataIds.result;
+
+                if (!idsCardsEncontrados || idsCardsEncontrados.length === 0) {
+                    labelStatus.innerText = "⚠️ Nenhum card difícil localizado.";
+                    return alert("Nenhum card com facilidade baixa foi encontrado neste baralho.");
+                }
+
+                labelStatus.innerText = "📄 Estruturando metadados textuais...";
+                const limitados = idsCardsEncontrados.slice(0, 15);
+
+                const infoRes = await fetch(URL_ANKI, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'cardsInfo', version: 6, params: { cards: limitados } })
+                });
+                const dataInfo = await infoRes.json();
+
+                let conteudoTextoExportacao = `=== CONTEXTO DE RECUPERAÇÃO DO BARALHO: ${baralho} ===\n`;
+                dataInfo.result.forEach((card, index) => {
+                    const f = card.fields.Front ? card.fields.Front.value.replace(/<[^>]*>/g, '') : 'Vazio';
+                    const v = card.fields.Back ? card.fields.Back.value.replace(/<[^>]*>/g, '') : 'Vazio';
+                    conteudoTextoExportacao += `Card ${index + 1} | Frente: ${f} | Verso: ${v}\n`;
+                });
+
+                // SALVA NA MEMÓRIA TEMPORÁRIA DO NAVEGADOR (Sem baixar arquivo)
+                sessionStorage.setItem('dados_anki_revisao', conteudoTextoExportacao);
+
+                labelStatus.innerText = "🚀 Dados guardados na memória! Redirecionando...";
+                
+                // Vai automaticamente para a página do Gemini após 1 segundo
+                setTimeout(() => {
+                    window.location.href = "gemini.html";
+                }, 1000);
+
+            } catch (error) {
+                console.error(error);
+                labelStatus.innerText = "❌ Erro na transferência.";
+            }
+        }
+    </script>
+</body>
+</html>
